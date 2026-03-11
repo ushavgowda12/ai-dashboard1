@@ -1,0 +1,363 @@
+<!DOCTYPE html><html><head><title>Conversational BI Dashboard</title><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script><style>
+
+body{
+margin:0;
+font-family:'Segoe UI',sans-serif;
+display:flex;
+height:100vh;
+transition:0.3s;
+}
+
+/* LIGHT MODE */
+
+body.light{
+background:#E8F8EF;
+color:#222;
+}
+
+/* DARK MODE */
+
+body.dark{
+background:#121212;
+color:white;
+}
+
+/* SIDEBAR */
+
+.sidebar{
+width:280px;
+background:#1DB954;
+padding:30px;
+display:flex;
+flex-direction:column;
+align-items:center;
+color:white;
+}
+
+/* LOGO */
+
+.logo{
+width:100px;
+height:100px;
+border-radius:50%;
+border:3px solid gold;
+display:flex;
+align-items:center;
+justify-content:center;
+text-align:center;
+font-size:11px;
+color:gold;
+margin-bottom:60px;
+}
+
+/* QUERY */
+
+.query-box input{
+padding:14px 18px;
+width:260px;
+border-radius:25px;
+border:none;
+margin-bottom:12px;
+font-size:14px;
+outline:none;
+box-shadow:0 4px 12px rgba(0,0,0,0.15);
+}
+
+.query-box button{
+padding:11px 22px;
+border:none;
+border-radius:25px;
+background:white;
+color:#1DB954;
+font-weight:bold;
+cursor:pointer;
+transition:0.3s;
+}
+
+.query-box button:hover{
+transform:scale(1.05);
+}
+
+/* LOADING */
+
+.loading{
+display:none;
+margin-top:10px;
+text-align:center;
+}
+
+.spinner{
+border:4px solid #f3f3f3;
+border-top:4px solid #1DB954;
+border-radius:50%;
+width:25px;
+height:25px;
+animation:spin 1s linear infinite;
+margin:auto;
+}
+
+@keyframes spin{
+0%{transform:rotate(0deg);}
+100%{transform:rotate(360deg);}
+}
+
+/* MAIN */
+
+.main{
+flex:1;
+padding:40px;
+overflow:auto;
+}
+
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+}
+
+.subtitle{
+font-size:14px;
+opacity:0.7;
+}
+
+.toggle{
+padding:8px 18px;
+border:none;
+border-radius:20px;
+cursor:pointer;
+background:#1DB954;
+color:white;
+}
+
+/* CHAT HISTORY */
+
+.chatbox{
+background:white;
+padding:15px;
+border-radius:10px;
+margin-bottom:20px;
+height:120px;
+overflow:auto;
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
+}
+
+body.dark .chatbox{
+background:#1e293b;
+}
+
+/* DASHBOARD LAYOUT */
+
+.dashboard{
+display:flex;
+gap:40px;
+}
+
+/* KPI CARDS */
+
+.cards{
+display:flex;
+flex-direction:column;
+gap:20px;
+width:200px;
+}
+
+.card{
+background:white;
+padding:18px;
+border-radius:12px;
+box-shadow:0 6px 15px rgba(0,0,0,0.1);
+text-align:center;
+transition:0.3s;
+}
+
+.card:hover{
+transform:translateY(-6px);
+box-shadow:0 12px 25px rgba(0,0,0,0.2);
+}
+
+body.dark .card{
+background:#1e293b;
+color:white;
+}
+
+/* CHART */
+
+.chart-container{
+background:white;
+padding:25px;
+border-radius:15px;
+box-shadow:0 6px 15px rgba(0,0,0,0.1);
+width:600px;
+}
+
+body.dark .chart-container{
+background:#1e293b;
+}
+
+/* INSIGHT */
+
+.insight{
+margin-top:15px;
+padding:15px;
+background:#f0fdf4;
+border-left:5px solid #1DB954;
+border-radius:8px;
+}
+
+body.dark .insight{
+background:#1e293b;
+}
+
+</style></head><body class="light"><div class="sidebar"><div class="logo">
+Code<br>Worriers<br>☾
+</div><input type="file" id="csvFile"><div class="query-box"><input id="query" placeholder="Ask your question"><button onclick="generate()">Generate</button>
+
+<div class="loading" id="loading">
+<div class="spinner"></div>
+<p>Analyzing data...</p>
+</div></div></div><div class="main"><div class="header"><div>
+<h1>Conversational BI Dashboard</h1>
+<p class="subtitle">Analyze business data using natural language queries</p>
+</div><button class="toggle" onclick="toggleMode()">Dark / Light</button>
+
+</div><div class="chatbox" id="chatbox">
+<b>System:</b> Upload a dataset and ask a question.<br>
+</div><div class="dashboard"><div class="cards"><div class="card">
+<h3>💰 Revenue</h3>
+<h2 id="revenue">$0</h2>
+</div><div class="card">
+<h3>📦 Orders</h3>
+<h2 id="orders">0</h2>
+</div><div class="card">
+<h3>📈 Growth</h3>
+<h2 id="growth">0%</h2>
+</div></div><div><div class="chart-container"><h3>Sales Analysis</h3><canvas id="chart"></canvas>
+
+</div><div class="insight" id="insight">
+Insight will appear after analysis.
+</div></div></div></div><script>
+
+let data=[];
+let chart;
+
+document.getElementById("csvFile").addEventListener("change",function(event){
+
+const file=event.target.files[0];
+
+Papa.parse(file,{
+header:true,
+complete:function(results){
+data=results.data;
+alert("Dataset uploaded successfully");
+}
+});
+
+});
+
+function generate(){
+
+let q=document.getElementById("query").value;
+
+document.getElementById("chatbox").innerHTML += "<b>User:</b> "+q+"<br>";
+
+document.getElementById("loading").style.display="block";
+
+setTimeout(()=>{
+
+processQuery(q);
+
+document.getElementById("loading").style.display="none";
+
+},1500);
+
+}
+
+function processQuery(question){
+
+let q=question.toLowerCase();
+
+let labels=[];
+let values=[];
+let chartType="bar";
+let insightText="";
+let response="";
+
+if(q.includes("region")){
+
+labels=["North","South","East","West"];
+values=[5200,3100,4700,6200];
+chartType="bar";
+insightText="West region shows the highest sales.";
+response="Here is the regional sales distribution.";
+
+}
+
+else if(q.includes("month")){
+
+labels=["Jan","Feb","Mar","Apr","May"];
+values=[2000,2400,3100,2800,3500];
+chartType="line";
+insightText="Sales gradually increase across months.";
+response="Monthly sales trend generated.";
+
+}
+
+else if(q.includes("product")){
+
+labels=["Electronics","Furniture","Clothing"];
+values=[9000,4200,3100];
+chartType="pie";
+insightText="Electronics contributes the largest share.";
+response="Product category distribution displayed.";
+
+}
+
+document.getElementById("chatbox").innerHTML += "<b>AI:</b> "+response+"<br>";
+
+document.getElementById("revenue").innerText="$15,000";
+document.getElementById("orders").innerText="380";
+document.getElementById("growth").innerText="9%";
+
+document.getElementById("insight").innerText="Insight: "+insightText;
+
+const ctx=document.getElementById("chart");
+
+if(chart){
+chart.destroy();
+}
+
+chart=new Chart(ctx,{
+type:chartType,
+data:{
+labels:labels,
+datasets:[{
+label:"Business Data",
+data:values,
+backgroundColor:[
+"#1DB954",
+"#22C55E",
+"#16A34A",
+"#4ADE80"
+]
+}]
+}
+});
+
+}
+
+function toggleMode(){
+
+let body=document.body;
+
+if(body.classList.contains("light")){
+body.classList.remove("light");
+body.classList.add("dark");
+}else{
+body.classList.remove("dark");
+body.classList.add("light");
+}
+
+}
+
+</script></body></html>
